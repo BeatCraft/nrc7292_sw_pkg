@@ -439,6 +439,17 @@ def startNAT():
         os.system("sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE")
         os.system("sudo iptables -A FORWARD -i eth0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT")
         os.system("sudo iptables -A FORWARD -i wlan0 -o eth0 -j ACCEPT")
+
+        ## do same masquerade by nftables
+        # sudo nft add table inet nat
+        # sudo nft add chain inet nat postrouting { type nat hook postrouting priority 100 \; }
+        # sudo nft add rule inet nat postrouting oifname "eth0" masquerade
+        #
+        # sudo nft add table inet filter
+        # sudo nft add chain inet filter forward { type filter hook forward priority 0 \; }
+        # sudo nft add rule inet filter forward iifname "eth0" oifname "wlan0" ct state related,established accept
+        # sudo nft add rule inet filter forward iifname "wlan0" oifname "eth0" accept
+
     elif strSTA() == 'RELAY' and int(relay_nat) == 1:
         if int(relay_type) == 1:
             os.system("sudo iptables -t nat -A POSTROUTING -o wlan1 -j MASQUERADE")
