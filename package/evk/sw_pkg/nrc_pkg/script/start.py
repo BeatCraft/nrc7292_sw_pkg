@@ -3,7 +3,13 @@
 import sys, os, time, subprocess, re
 import threading
 from mesh import *
-script_path = "/home/pi/nrc_pkg/script/"
+
+# Default "pi" user has been removed after 2022-04-04 
+# so we need to use current user instead of pi user
+userhome = os.path.expanduser("~")
+pkgroot = userhome + "/nrc_pkg"
+script_path = pkgroot + "/script/"
+
 
 # Default Configuration (you can change value you want here)
 ##################################################################################
@@ -365,6 +371,13 @@ def isMacAddress(s):
     else:
         return False
 
+def check_macaddr_format(macaddr):
+    macaddr_format = "[0-9a-f]{2}([-:])[0-9a-f]{2}(:[0-9a-f]{2}){4}$"
+    if not re.match(macaddr_format, macaddr.lower()):
+        return False
+    else:
+        return True
+
 def isIP(s):
     if len(s) > 6 and len(s) < 16 and '.' in s:
         return True
@@ -430,8 +443,8 @@ def argv_print():
     print("------------------------------")
 
 def copyConf():
-    os.system("sudo /home/pi/nrc_pkg/sw/firmware/copy " + str(model) + " " + strBDName())
-    os.system("/home/pi/nrc_pkg/script/conf/etc/ip_config.sh " + strSTA() + " " +  str(relay_type) + " " + str(static_ip) + " " + str(batman))
+    os.system("sudo " + pkgroot + "/sw/firmware/copy " + str(model) + " " + strBDName())
+    os.system(script_path + "/conf/etc/ip_config.sh " + strSTA() + " " +  str(relay_type) + " " + str(static_ip) + " " + str(batman))
 
 def startNAT():
     os.system('sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"')
@@ -449,7 +462,7 @@ def startNAT():
         # sudo nft add chain inet filter forward { type filter hook forward priority 0 \; }
         # sudo nft add rule inet filter forward iifname "eth0" oifname "wlan0" ct state related,established accept
         # sudo nft add rule inet filter forward iifname "wlan0" oifname "eth0" accept
-
+ 
     elif strSTA() == 'RELAY' and int(relay_nat) == 1:
         if int(relay_type) == 1:
             os.system("sudo iptables -t nat -A POSTROUTING -o wlan1 -j MASQUERADE")
@@ -466,6 +479,11 @@ def stopNAT():
     os.system('sudo sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward"')
     os.system("sudo iptables -t nat --flush")
     os.system("sudo iptables --flush")
+
+    ## nft example
+    #os.system('sudo sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward"')
+    #os.system("sudo nft flush table nat")
+    #os.system("sudo nft flush table inet filter")
 
 def startDHCPCD():
     os.system("sudo systemctl start dhcpcd")
@@ -755,7 +773,7 @@ def setModuleParam():
 def run_common():
     if int(max_cpuclock) == 1:
         print("[*] Set Max CPU Clock on RPi")
-        os.system("sudo /home/pi/nrc_pkg/script/conf/etc/clock_config.sh")
+        os.system("sudo " + script_path + "/conf/etc/clock_config.sh")
 
     print("[0] Clear")
     os.system("sudo hostapd_cli disable 2>/dev/null")
@@ -781,8 +799,8 @@ def run_common():
     os.system("sudo iw reg set " + strOriCountry())
 
     print("[3] Loading module")
-    print("sudo insmod /home/pi/nrc_pkg/sw/driver/nrc.ko " + insmod_arg)
-    os.system("sudo insmod /home/pi/nrc_pkg/sw/driver/nrc.ko " + insmod_arg + "")
+    print("sudo insmod " + pkgroot + "/sw/driver/nrc.ko " + insmod_arg)
+    os.system("sudo insmod " + pkgroot + "/sw/driver/nrc.ko " + insmod_arg + "")
 
     if int(spi_polling_interval) <= 0:
         time.sleep(5)
@@ -800,14 +818,14 @@ def run_common():
         sys.exit()
 
     print("[4] Set Maximum TX Power")
-    os.system('/home/pi/nrc_pkg/script/cli_app set txpwr limit ' + str(max_txpwr))
+    os.system(script_path + '/cli_app set txpwr limit ' + str(max_txpwr))
     if strSTA() != 'SNIFFER':
         print("[*] Transmission Power Control(TPC) is activated")
         os.system('sudo iw phy nrc80211 set txpower limit ' + str(int(max_txpwr) * 100))
 
     print("[5] Set guard interval: " + guard_int)
     if str(guard_int) != 'auto':
-        os.system('/home/pi/nrc_pkg/script/cli_app set gi ' + guard_int)
+        os.system(script_path + '/cli_app set gi ' + guard_int)
 
     print("[*] Start DHCPCD and DNSMASQ")
     startDHCPCD()
@@ -824,9 +842,9 @@ def run_ibss(interface):
 
     print("[6] Start wpa_supplicant on " + interface)
     if strSecurity() == 'OPEN':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/ibss_halow_open.conf " + debug + " &")
+        os.system("sudo wpa_supplicant -i " + interface + " -c " + script_path + "/conf/" + country + "/ibss_halow_open.conf " + debug + " &")
     elif strSecurity() == 'WPA2-PSK':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/ibss_halow_wpa2.conf " + debug + " &")
+        os.system("sudo wpa_supplicant -i " + interface + " -c " + script_path + "/conf/" + country + "/ibss_halow_wpa2.conf " + debug + " &")
 
 def run_sta(interface):
     country = str(sys.argv[3])
@@ -854,19 +872,38 @@ def run_sta(interface):
         os.system("sudo iwconfig " + interface + " power timeout " + ps_timeout)
 
     print("[6] Start wpa_supplicant on " + interface)
+
     if strSecurity() == 'OPEN':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/sta_halow_open.conf " + bridge + debug + " &")
+        os.system("sudo wpa_supplicant -i" + interface + " -c " + script_path + "/conf/" + country + "/sta_halow_open.conf " + bridge + debug + " &")
     elif strSecurity() == 'WPA2-PSK':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/sta_halow_wpa2.conf " + bridge + debug + " &")
+        os.system("sudo wpa_supplicant -i" + interface + " -c " + script_path + "/conf/" + country + "/sta_halow_wpa2.conf " + bridge + debug + " &")
     elif strSecurity() == 'WPA3-OWE':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/sta_halow_owe.conf " + bridge + debug + " &")
+        os.system("sudo wpa_supplicant -i" + interface + " -c " + script_path + "/conf/" + country + "/sta_halow_owe.conf " + bridge + debug + " &")
     elif strSecurity() == 'WPA3-SAE':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/sta_halow_sae.conf " + bridge + debug + " &")
+        os.system("sudo wpa_supplicant -i" + interface + " -c " + script_path + "/conf/" + country + "/sta_halow_sae.conf " + bridge + debug + " &")
     elif strSecurity() == 'WPA-PBC':
-        os.system("sudo wpa_supplicant -i" + interface + " -c /home/pi/nrc_pkg/script/conf/" + country + "/sta_halow_pbc.conf " + bridge + debug + " &")
+        os.system("sudo wpa_supplicant -i" + interface + " -c " + script_path + "/conf/" + country + "/sta_halow_pbc.conf " + bridge + debug + " &")
         time.sleep(1)
         os.system("sudo wpa_cli wps_pbc")
     time.sleep(3)
+
+    ## test replace  use similar code in run_ap(interface)
+    #if strSecurity() == 'OPEN':
+    #    wpa_sec = "open"
+    #elif strSecurity() == 'WPA2-PSK':
+    #    wpa_sec = "wpa2"
+    #elif strSecurity() == 'WPA3-OWE':
+    #    wpa_sec = "owe"
+    #elif strSecurity() == 'WPA3-SAE':
+    #    wpa_sec = "sae"
+    #elif strSecurity() == 'WPA-PBC':
+    #   wpa_sec = "pbc"
+    #
+    #os.system("sudo wpa_supplicant -i " + interface + " -c " + script_path + "conf/" + country + "/sta_halow_{s}.conf ".format(s=wpa_sec) + bridg + debug + " &")
+    #if strSecurity() == 'WPA-PBC':
+    #    time.sleep(1)
+    #    os.system("sudo wpa_cli wps_pbc")
+    #time.sleep(3)
 
     print("[7] Connect and DHCP")
     if int(use_bridge_setup) > 0:
@@ -951,7 +988,7 @@ def run_ap(interface):
             time.sleep(1)
             os.system("sudo hostapd_cli wps_pbc")
     else:
-        launch_hostapd( interface, '/home/pi/nrc_pkg/script/conf/' + country + conf_file, country, debug, channel )
+        launch_hostapd( interface, script_path + '/conf/' + country + conf_file, country, debug, channel )
         if strSecurity() == 'WPA-PBC':            
             time.sleep(1)
             os.system("sudo hostapd_cli wps_pbc")
