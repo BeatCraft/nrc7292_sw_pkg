@@ -30,4 +30,11 @@ default の connection になる。
 以降はこの con-eth0 に変更を加えて nmcli reload すれば
 変更が反映される。
 
+static に変更する場合の nmcli コマンド例
+sudo nmcli c mod con-eth0 ipv4.method manual ipv4.address 192.168.0.60/24 ipv4.gateway 192.168.0.254 ipv4.dns 192.168.0.254
+
+変更を device に反映
+sudo nmcli connection reload
+sudo nmcli connection up con-eth0
+
 
