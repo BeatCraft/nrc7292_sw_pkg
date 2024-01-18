@@ -1,0 +1,33 @@
+
+ネットワーク接続が NetworkManager で管理されている場合の挙動
+device eth0 にケーブルを接続して起動すると
+自動的に connection が作成されるが、
+この connection はロケールによって名前が変わる。
+
+英語ロケールの場合は
+  Wired connection 1
+日本語ロケールの場合は
+  有線接続 1
+のような名前になる。
+
+このとき connection はファイル化されておらずメモリ上にしか存在しない。
+
+Gnome の GUI などから設定を変更するとファイルが作られる。
+
+
+nmcli で connection を明示的に作成
+$ sudo nmcli connection add type ethernet con-name con-eth0 ifname eth0
+
+これをすると con-eth0 という connection が作成される。
+この設定ファイルは
+
+/etc/Networkmanager/system-connections/con-eth0.nmconnection
+に作成される。
+再起動すると次からはこの con-eth0 が使用されるようになり
+default の connection になる。
+メモリ上にしかなかった Wired connection 1 は無くなってしまう。
+
+以降はこの con-eth0 に変更を加えて nmcli reload すれば
+変更が反映される。
+
+
