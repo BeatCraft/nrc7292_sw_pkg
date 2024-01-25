@@ -1,0 +1,55 @@
+
+NetworkManager 対応および pi ユーザー以外でも動作可能にしたい動機
+  1. 
+  RasPi を使う場合
+  Raspberry Pi OS 12(Bookworm) から ネットワーク設定を NetworkManager で行うようになったので、
+  11ah インタフェースも NetworkManager で設定できるならしたい。
+
+  また新しい RasPi OS では legacy 版でも default ユーザー pi は存在しないので 
+  それ以外のユーザーを作っても動作するようにしたい。
+
+  ただし、RasPi3 を使うなら Raspi Imager での推奨 OS は RasPi OS legacy (11 bullseye) で、
+  これを使うのであればユーザーを pi にさえしておけば
+  現在の nrc7292_sw_pkg でそのまま動く。
+
+
+  2.
+  Armadillo-IoT G3 を使う場合
+  Armadillo-IoT G3 の 3G/LTE モデルはモデムでのモバイルネットワーク接続を
+  NetworkManager で設定して行う前提になっているので、
+  11ah インタフェースも NetworkManager で設定できるならしたい。
+
+  Armadillo-IoT G3 の default ユーザーは atmark なのでこれでも動くようにしたい。
+
+
+問題点
+  AP モードの場合
+  ap_halow_*.conf で行っている hostapd の設定項目を見ると
+  NetworkManager の wifi ap 設定機能では設定できない項目があるので
+  NetworkManager では完全に同じ設定はできない。
+    -> AP 動作は hostapd を使う必要がありそう。 
+ 
+  hostapd を使う場合 11ah の wlan0 を NetworkManager による管理インタフェースから外すので
+  NetworkManager による IP 設定機能も使えない。
+  iw コマンドで設定するしかない。
+
+  STA モードの場合
+  sta_halow_*.conf で行っている wpa_supplicant の設定項目に
+  NetworkManager -> wpa_supplicant の連携動作では設定できない項目があるので
+  NetworkManager では dhcpcd + wpa_supplicant で行っているのと同じ動作はできない。
+
+
+  RaspberryPi では dhcpcd をインストールして NetworkManager の service を停止し
+  以前のように dhcpcd で設定を行うようにすることができるが、
+　Armadillo-IoT G3 で AP モード時に上流 WAN 側が 3G/LTE の場合
+  dhcpcd に切り替えることはできないので
+  LAN側 11ah インタフェースは Networkhostapd + iw コマンドによる設定をするしかない。
+  --> 
+  dhcpcd を使う場合、現状の nrc7292_sw_pkg のように AP/STA どちらのモードでも
+  IP の設定には dhcpcd を使って簡単にモードの切り替えができるが、
+  NetworkManager を使う場合 AP 動作時には NetworkManager を使えないので
+  AP モード時と STA モード時で IP アドレスの設定方法が異なる形になる。
+  --> 
+  結局 各モードごとに別のカスタム設定スクリプトを作るような形式になってしまう。
+
+
