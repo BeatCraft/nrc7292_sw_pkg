@@ -1,0 +1,56 @@
+
+BC-11AH-IOT-ARMADILLO で BC-11ah を
+Armadillo-IoT G3 の addon コネクター con1 に接続して使用するための
+手順メモ
+
+
+Armadillo-IoTゲートウェイ G3 インストールディスクイメージ
+https://armadillo.atmark-techno.com/resources/software/armadillo-iot-g3/install-disk-image
+からダウンロードできる
+Debian GNU/Linux 10 (buster) イメージファイル（Armadillo-IoT G3 ※3G/LTE非搭載モデル）
+https://armadillo.atmark-techno.com/files/downloads/armadillo-iot-g3/image/install_disk_sd_buster_20231225_iotg3.img
+で Armadillo-IoT G3 を初期化し、
+2024年2月末時点で最新の状態に更新する。
+
+ブートローダー (u-boot) : v2016.07-at23
+Linux カーネル : v4.9-at31
+DTB (Device Tree Blob) : v4.9-at31
+
+atmark@armadillo:~$ uname -r
+4.9.133-at31
+
+
+ATDE8 上で以下の作業を実施
+1. dts を変更
+2. kernel config を実行
+  spi、wifi、bt をモジュールに変更
+atmark@atde8:~$ cd Work/linux-4.9-x1-at31/
+atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- menuconfig
+atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- 
+atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- LOADADDR=0x80008000 uImage
+atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- INSTALL_MOD_PATH=/home/atmark/Work/rootfs/ modules_install
+
+atmark@atde8:~/Work/linux-4.9-x1-at31$ cd arch/arm/boot/
+atmark@atde8:~/Work/linux-4.9-x1-at31/arch/arm/boot$ scp uImage atmark@{armadillo ip}:~/
+atmark@atde8:~/Work/linux-4.9-x1-at31/arch/arm/boot$ cd dts/
+atmark@atde8:~/Work/linux-4.9-x1-at31/arch/arm/boot/dts$ scp armadillo_iotg_g3.dtb atmark@{armadillo ip}:~/
+atmark@atde8:~/Work/linux-4.9-x1-at31/arch/arm/boot/dts$ cd ~/Work/rootfs/
+atmark@atde8:~/Work/rootfs$ tar cvf lib.tar ./*
+atmark@atde8:~/Work/rootfs$ scp lib.tar atmark@{armadillo ip}:~/
+
+
+3. nrc7292_sw_pkg-1.5 を取得し
+nrc.ko と cli_app を Armadillo 向けにビルド
+
+
+
+Armadillo 上で以下の作業を実行
+1. ATDE8 上で行った作業を実機に反映
+2. 修正版 nrc7292_sw_pkg を取得
+3. dhcpcd5 をインストールし NetworkManager service を停止
+4. /etc/modules.d/ に blacklist.conf を作成し wlan と bt を停止
+5. hostapd、dnsmasq をインストール
+
+
+
+
