@@ -168,7 +168,7 @@ def check(interface):
     if int(use_bridge_setup) > 0:
         os.system('sudo dhclient ' + interface +' -nw -v')
 
-    ifconfig_cmd = "ifconfig " + interface
+    ifconfig_cmd = "/sbin/ifconfig " + interface
     ifconfig_process = subprocess.Popen(ifconfig_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ifconfig_lines = ifconfig_process.communicate()[0]
 
