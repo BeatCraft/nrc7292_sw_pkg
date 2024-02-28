@@ -154,10 +154,17 @@ atmark@armadillo:~$ sudo apt install hostapd dnsmasq
 Armadillo-IoT G3 向けに start.py で nrc.ko を insmod する際に使用される
 オプションのパラメーターを変更する。
 
+spi_bus_num  = 1
+spi_gpio_irq = 196 
+
+22.4. GPIOを制御する
+https://manual.atmark-techno.com/armadillo-iot-g3/armadillo-iotg-g3_product_manual_ja-3.4.0/ch22.html#sct.gpio
+表22.1 アドオンインターフェースのGPIOディレクトリ
+より、CON1_42ピン = 196
+
 
 以上で RasPi に nrc7292_sw_pkg をインストールした場合と同様に
 Armadillo-IoT G3 で 11ah が使用可能に構成された。
-
 
 
 /home/atmark/nr_pkg/script/ 以下の各コマンドの使用方法は RasPi 上と同じ。
