@@ -1,5 +1,5 @@
 
-BC-11AH-IOT-ARMADILLO で BC-11ah を
+BC-11ah を BC-11AH-IOT-ARMADILLO で 
 Armadillo-IoT G3 の addon コネクター con1 に接続して使用するための
 手順メモ
 
@@ -20,16 +20,45 @@ atmark@armadillo:~$ uname -r
 4.9.133-at31
 
 
-ATDE8 上で以下の作業を実施
-1. dts を変更
-2. kernel config を実行
+1. ATDE8 上で以下の作業を実施
+
+1-1. Armadillo-IoT G3 の kernel ビルド準備
+
+Armadillo-IoTゲートウェイ G3 製品マニュアル
+https://armadillo.atmark-techno.com/resources/documents/armadillo-iot-g3/manuals
+にリンクのある
+Debian GNU/Linux 10 (buster) 対応 製品マニュアル
+https://manual.atmark-techno.com/armadillo-iot-g3/armadillo-iotg-g3_product_manual_ja-3.4.0/
+の
+10. ビルド手順
+https://manual.atmark-techno.com/armadillo-iot-g3/armadillo-iotg-g3_product_manual_ja-3.4.0/ch10.html
+以降に従い Linux kernel のビルド環境を用意する。
+
+1-2. dts を変更
+linux-4.9-x1-at31/arch/arm/boot/dts/armadillo_iotg_g3.dts
+に addon コネクタの
+ 35 SPI SCLK
+ 36 SPI MISO
+ 37 SPI MOSI
+ 50 SPI CS
+ 42 GPIO EIRQ
+との通信を有効にするための記述を追加
+
+1-3. kernel config を変更
   spi、wifi、bt をモジュールに変更
 atmark@atde8:~$ cd Work/linux-4.9-x1-at31/
+atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm x1_defconfig
 atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- menuconfig
+ CONFIG_BT を y から m に
+ CONFIG_ATH9K を y から m に
+ CONFIG_SPI_IMX　を y から m に
+
+1-4. kernel ビルド
 atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- 
 atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- LOADADDR=0x80008000 uImage
 atmark@atde8:~/Work/linux-4.9-x1-at31$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- INSTALL_MOD_PATH=/home/atmark/Work/rootfs/ modules_install
 
+ビルドした uImage、dtb、modules を Armadillo-IoT G3 実機上へコピー
 atmark@atde8:~/Work/linux-4.9-x1-at31$ cd arch/arm/boot/
 atmark@atde8:~/Work/linux-4.9-x1-at31/arch/arm/boot$ scp uImage atmark@{armadillo ip}:~/
 atmark@atde8:~/Work/linux-4.9-x1-at31/arch/arm/boot$ cd dts/
@@ -39,17 +68,99 @@ atmark@atde8:~/Work/rootfs$ tar cvf lib.tar ./*
 atmark@atde8:~/Work/rootfs$ scp lib.tar atmark@{armadillo ip}:~/
 
 
-3. nrc7292_sw_pkg-1.5 を取得し
-nrc.ko と cli_app を Armadillo 向けにビルド
+1-5. nrc7292_sw_pkg を取得し nrc.ko を Armadillo 向けにビルド
+
+newracom の master から fork した
+https://github.com/BeatCraft/nrc7292_sw_pkg
+をダウンロードし、
+atmark@atde8:~$ cd /home/atmark/nrc7292_sw_pkg-master/package/src/nrc
+Makefile の KDIR を kernel build 作業したディレクトリ
+KDIR ?= /home/atmark/Work/linux-4.9-x1-at31/
+に変更しビルド
+atmark@atde8:~/nrc7292_sw_pkg-master/package/src/nrc$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
+
+ビルドされてできた nrc.ko を実機上へコピー
+atmark@atde8:~/nrc7292_sw_pkg-master/package/src/nrc$ scp nrc.ko atmark@{armadillo ip}:~/
+
+
+2. Armadillo 上で以下の作業を実行
+
+2-1. ATDE8 上で行った作業を実機に反映
+atmark@armadillo:~$ sudo -s
+root@armadillo:/home/atmark# mount -t vfat /dev/mmcblk2p1 /mnt
+root@armadillo:/home/atmark# cd /mnt
+root@armadillo:/mnt# cp /home/atmark/uImage .
+root@armadillo:/mnt# cp /home/atmark/armadillo_iotg_g3.dtb .
+root@armadillo:/mnt# exit
+atmark@armadillo:~$ tar xvf lib.tar
+atmark@armadillo:~$ cd lib
+atmark@armadillo:~/lib$ sudo mv modules /lib/
+atmark@armadillo:~$ sudo reboot
+
+2-2. modules の blacklist に wifi と bt を設定
+atmark@armadillo:~$ sudo -s
+root@armadillo:/home/atmark# cd /etc/modprobe.d/
+root@armadillo:/home/atmark# vim blacklist.conf
+以下の内容を追加
+ # wifi
+ blacklist ath9k
+ blacklist ath_common
+ blacklist ath_hw
+ blacklist ath
+ # bt
+ blacklist bluetooth
+ blacklist btusb
+ blacklist btintel
+ blacklist btrtl
+ blacklist btbcm
+ blacklist ath3k
+
+追加後再起動し変更を反映
+atmark@armadillo:~$ lsmod
+Module                  Size  Used by
+spi_imx                12087  0
+spi_bitbang             3941  1 spi_imx
+となっており、hci0 と wlan0 がなければ OK
+
+2-3. 修正版 nrc7292_sw_pkg を取得しインストール
+https://github.com/BeatCraft/nrc7292_sw_pkg
+をダウンロードし、
+atmark@armadillo:~$ cd nrc7292_sw_pkg-master/package/evk/sw_pkg
+atmark@armadillo:~/nrc7292_sw_pkg-master/package/evk/sw_pkg$ ./update.sh
+$HOME/ に nrc_pkg がコピーされた後 Armadillo 向けに以下の調整を実行
+
+cli_app
+atmark@armadillo:~/nrc7292_sw_pkg-master/package/evk/sw_pkg$ cd ../../src/cli_app/
+atmark@armadillo:~/nrc7292_sw_pkg-master/package/src/cli_app$ make
+atmark@armadillo:~/nrc7292_sw_pkg-master/package/src/cli_app$ cp cli_app ~/nrc_pkg/script/
+nrc.ko
+atmark@armadillo:~/nrc7292_sw_pkg-master/package/src/cli_app$ cd
+atmark@armadillo:~$ cp nrc.ko nrc_pkg/sw/driver/
+copy
+atmark@armadillo:~$ cd nrc_pkg/sw/firmware/
+atmark@armadillo:~/nrc_pkg/sw/firmware$ mv copy copy.orig
+atmark@armadillo:~/nrc_pkg/sw/firmware$ mv copy_for_armadillo copy
+
+
+2-4. dhcpcd5 をインストールし NetworkManager service を停止
+atmark@armadillo:~$ sudo apt install dhcpcd5
+atmark@armadillo:~$ sudo systemctl stop NetworkManager.service
+atmark@armadillo:~$ sudo systemctl disable NetworkManager.service
+
+2-5. hostapd、dnsmasq をインストール
+atmark@armadillo:~$ sudo apt install hostapd dnsmasq
+
+2-6. start.py のパラメーター調整
+Armadillo-IoT G3 向けに start.py で nrc.ko を insmod する際に使用される
+オプションのパラメーターを変更する。
+
+
+以上で RasPi に nrc7292_sw_pkg をインストールした場合と同様に
+Armadillo-IoT G3 で 11ah が使用可能に構成された。
 
 
 
-Armadillo 上で以下の作業を実行
-1. ATDE8 上で行った作業を実機に反映
-2. 修正版 nrc7292_sw_pkg を取得
-3. dhcpcd5 をインストールし NetworkManager service を停止
-4. /etc/modules.d/ に blacklist.conf を作成し wlan と bt を停止
-5. hostapd、dnsmasq をインストール
+/home/atmark/nr_pkg/script/ 以下の各コマンドの使用方法は RasPi 上と同じ。
 
 
 
