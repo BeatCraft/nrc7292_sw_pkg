@@ -1013,6 +1013,13 @@ def run_ap(interface):
     time.sleep(3)
     print("[8] ifconfig")
     os.system('sudo ifconfig')
+
+    # set 10% duty
+    os.system('/home/pi/nrc_pkg/script/cli_app set duty on 1000000 100000')
+    time.sleep(3)
+    print("[9] set 10% duty")
+    os.system('/home/pi/nrc_pkg/script/cli_app show duty')
+
     print("HaLow AP ready")
     print("--------------------------------------------------------------------")
 
