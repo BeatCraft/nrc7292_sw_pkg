@@ -627,6 +627,19 @@ static void nrc_mac_rx_h_status(struct nrc *nw, struct sk_buff *skb)
 	}
 #endif
 
+	//
+	// 2024-05-16 modifiied by lesser@beatcraft.com
+	//
+	if (ieee80211_is_data(mh->frame_control)){
+            printk(KERN_INFO "[BEATCRAFT] DATA, %02x.%02x.%02x.%02x.%02x.%02x, %02x.%02x.%02x.%02x.%02x.%02x, %d, %u\n",
+                   mh->addr1[0], mh->addr1[1], mh->addr1[2], mh->addr1[3], mh->addr1[4], mh->addr1[5],
+                   mh->addr2[0], mh->addr2[1], mh->addr2[2], mh->addr2[3], mh->addr2[4], mh->addr2[5],
+                   fh->flags.rx.rssi, fh->flags.rx.snr);
+        }
+	//
+        // end of modification
+        //
+	
 	if (signal_monitor) {
 		//update snr and rssi only if signal monitor is enabled
 		nrc_stats_update(mh->addr2, fh->flags.rx.snr, fh->flags.rx.rssi);
