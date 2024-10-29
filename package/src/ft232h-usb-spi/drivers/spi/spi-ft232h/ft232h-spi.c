@@ -55,7 +55,7 @@ static int ftdi_spi_setup (struct spi_device *spi)
 	struct spi_master *master = spi->master;
 	struct ftdi_spi *priv = spi_controller_get_devdata(master);
 	int ret;
-
+dev_err(&priv->pdev->dev, "[%s]:\n", __func__);
 	if (spi->chip_select != 0 || spi->bits_per_word != 8)
 		return -EINVAL;
 
@@ -68,7 +68,7 @@ static int ftdi_spi_setup (struct spi_device *spi)
 		dev_err(&priv->pdev->dev, "Clk divisor setting failed: %d\n", ret);
 		return ret;
 	}
-
+dev_err(&priv->pdev->dev, "[%s]: done..\n", __func__);
 	return 0;
 }
 
@@ -77,7 +77,7 @@ static void ftdi_spi_set_cs(struct spi_device *spi, bool enable)
 	struct ftdi_spi *priv = spi_controller_get_devdata(spi->master);
 	int ret;
 
-	dev_dbg(&priv->pdev->dev, "%s: CS %u, cs mode %d, val %d\n",
+	dev_dbg(&priv->pdev->dev, "%s: CS %u, cs mode %d, val %u\n",
 			__func__, spi->chip_select, (spi->mode & SPI_CS_HIGH), enable);
 
 	ret = priv->iops->set_cs_pin(priv->intf, enable ? MPSSE_GPIO_HIGH : MPSSE_GPIO_LOW);
@@ -449,7 +449,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	struct spi_controller *master;
 	struct ftdi_spi *priv;
 	int ret;
-
+dev_info(dev, "[%s]:\n", __func__);
 	pd = dev->platform_data;
 	if (!pd) {
 		dev_err(dev, "Missing platform data.\n");
@@ -488,7 +488,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	master->set_cs = ftdi_spi_set_cs;
 	master->transfer_one = ftdi_spi_transfer_one;
 	master->auto_runtime_pm = false;
-
+dev_info(dev, "[%s]: try spi_register_controller\n", __func__);
 	ret = spi_register_controller(master);
 	if (ret < 0) {
 		dev_err(dev, "Failed to register spi master\n");
@@ -537,9 +537,10 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 			}
 		}
 	}
-
+dev_info(dev, "[%s]: done ....\n", __func__);
 	return 0;
 err:
+	dev_info(dev, "[%s]: done err....%d\n", __func__, ret);
 	platform_set_drvdata(pdev, NULL);
 	spi_unregister_controller(master);
 	return ret;
@@ -559,14 +560,14 @@ static int ftdi_spi_remove(struct platform_device *pdev)
 {
 	struct spi_controller *master;
 	struct ftdi_spi *priv;
-
+dev_info(&pdev->dev, "[%s]:\n", __func__);
 	master = platform_get_drvdata(pdev);
 	priv = spi_controller_get_devdata(master);
 
 	device_for_each_child(&master->dev, priv, ftdi_spi_slave_release);
 
 	spi_unregister_controller(master);
-
+dev_info(&pdev->dev, "[%s]: done...\n", __func__);
 	return 0;
 }
 

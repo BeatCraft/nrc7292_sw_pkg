@@ -707,7 +707,7 @@ static int ftdi_mpsse_gpio_probe(struct usb_interface *intf)
 	size_t lookup_size;
 	char **names, *label;
 	int i, ret;
-
+dev_info(&intf->dev, "[%s]:\n", __func__);
 	label = devm_kasprintf(parent, GFP_KERNEL, "ftdi-mpsse-gpio.%d", priv->id);
 	if (!label)
 		return -ENOMEM;
@@ -782,16 +782,18 @@ static int ftdi_mpsse_gpio_probe(struct usb_interface *intf)
 
 	priv->lookup_gpios = lookup;
 	gpiod_add_lookup_table(priv->lookup_gpios);
-
+dev_info(&intf->dev, "[%s]: done...\n", __func__);
 	return 0;
 }
 
 static void ftdi_mpsse_gpio_remove(struct usb_interface *intf)
 {
 	struct ft232h_intf_priv *priv = usb_get_intfdata(intf);
-
+dev_info(&intf->dev, "[%s]:\n", __func__);
 	if (priv->lookup_gpios)
 		gpiod_remove_lookup_table(priv->lookup_gpios);
+		
+dev_info(&intf->dev, "[%s]: done...\n", __func__);
 }
 
 static int ftdi_mpsse_spi_probe(struct usb_interface *intf)
@@ -801,7 +803,7 @@ static int ftdi_mpsse_spi_probe(struct usb_interface *intf)
 	struct device *parent = &intf->dev;
 	struct platform_device *pdev;
 	int ret;
-
+dev_info(&intf->dev, "[%s]: %s\n", __func__, intf->dev.init_name);
 	ret = ftdi_set_bitmode(intf, 0x00, BITMODE_RESET);
 	if (ret < 0)
 		return ret;
@@ -828,10 +830,11 @@ static int ftdi_mpsse_spi_probe(struct usb_interface *intf)
 
 	dev_dbg(&pdev->dev, "%s done\n", __func__);
 	priv->spi_pdev = pdev;
+dev_info(&intf->dev, "[%s]: %s done...\n", __func__, intf->dev.init_name);
 	return 0;
 
 err:
-	dev_err(parent, "%s: Can't create MPSSE SPI device %d\n", __func__, ret);
+	dev_err(parent, "[%s]: Can't create MPSSE SPI device %d\n", __func__, ret);
 	platform_device_put(pdev);
 	return ret;
 }
@@ -841,8 +844,9 @@ static int ftdi_mpsse_spi_remove(struct usb_interface *intf)
 	struct ft232h_intf_priv *priv = usb_get_intfdata(intf);
 	struct device *dev = &intf->dev;
 
-	dev_dbg(dev, "%s: spi pdev %p\n", __func__, priv->spi_pdev);
+	dev_info(dev, "[%s]: spi pdev %p\n", __func__, priv->spi_pdev);
 	platform_device_unregister(priv->spi_pdev);
+	dev_info(dev, "[%s]: done...\n", __func__);
 	return 0;
 }
 
@@ -854,7 +858,7 @@ int ft232h_intf_probe(struct usb_interface *intf, const struct usb_device_id *id
 	struct usb_endpoint_descriptor *endpoint;
 	unsigned int i;
 	int ret = 0;
-
+dev_info(dev,"[%s]: %s\n", __func__, dev->driver->name);
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
@@ -880,7 +884,8 @@ int ft232h_intf_probe(struct usb_interface *intf, const struct usb_device_id *id
 	mutex_init(&priv->io_mutex);
 	mutex_init(&priv->ops_mutex);
 	usb_set_intfdata(intf, priv);
-
+dev_info(dev, "[%s]: infdata0:%p\n", __func__, priv);
+dev_info(dev, "[%s]: infdata1:%p\n", __func__, usb_get_intfdata(intf));
 	priv->bulk_in_buf = devm_kmalloc(dev, priv->bulk_in_sz, GFP_KERNEL);
 	if (!priv->bulk_in_buf)
 		return -ENOMEM;
@@ -898,10 +903,11 @@ int ft232h_intf_probe(struct usb_interface *intf, const struct usb_device_id *id
 	ret = ftdi_mpsse_gpio_probe(intf);
 	if (ret < 0)
 		goto err;
-
+dev_info(&intf->dev,"[%s]: %s done...\n", __func__, intf->dev.init_name);
 	return 0;
 
 err:
+	dev_info(&intf->dev,"[%s]: %s err %d\n", __func__, intf->dev.init_name, ret);
 	if (priv->spi_pdev)
 		ftdi_mpsse_spi_remove(intf);
 	ida_simple_remove(&ftdi_devid_ida, priv->id);
@@ -911,7 +917,7 @@ err:
 void ft232h_intf_disconnect(struct usb_interface *intf)
 {
 	struct ft232h_intf_priv *priv = usb_get_intfdata(intf);
-
+dev_info(&intf->dev, "[%s]:\n", __func__);
 	ftdi_mpsse_gpio_remove(intf);
 	ftdi_mpsse_spi_remove(intf);
 
@@ -922,5 +928,7 @@ void ft232h_intf_disconnect(struct usb_interface *intf)
 
 	usb_put_dev(priv->udev);
 	ida_simple_remove(&ftdi_devid_ida, priv->id);
+	
+dev_info(&intf->dev, "[%s]: done...\n", __func__);
 }
 
