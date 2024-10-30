@@ -1,0 +1,148 @@
+基本的なセットアップ手順は
+AN-7292-008-FT232H_USB_SPI.pdf
+に準ずる。
+
+
+この driver はあまり新しい Raspberry Pi OS だと動作しない。
+動作確認ができている最新の環境は以下。
+
+
+Raspi issue date
+Raspberry Pi reference 2020-05-27
+Generated using pi-gen, https://github.com/RPi-Distro/pi-gen, 825107f04027269db77426046f5085475b1ea22f, stage4
+
+OS verion
+PRETTY_NAME="Raspbian GNU/Linux 10 (buster)"
+NAME="Raspbian GNU/Linux"
+VERSION_ID="10"
+VERSION="10 (buster)"
+VERSION_CODENAME=buster
+ID=raspbian
+ID_LIKE=debian
+HOME_URL="http://www.raspbian.org/"
+SUPPORT_URL="http://www.raspbian.org/RaspbianForums"
+BUG_REPORT_URL="http://www.raspbian.org/RaspbianBugs"
+
+kernel version
+Linux raspberrypi 4.19.118-v7l+ #1311 SMP Mon Apr 27 14:26:42 BST 2020 armv7l GNU/Linux
+
+
+1.
+https://downloads.raspberrypi.com/raspios_armhf/images/raspios_armhf-2020-05-28/2020-05-27-raspios-buster-armhf.zip
+を microSD カードに書き込み Raspberry Pi に差して起動する。
+
+
+2.
+driver をビルドするため kernel headers をインストールする必要があるが、
+いきなり apt update & apt upgrade してしまうと kernel version が更新されてしまうので
+kernel headers package をダウンロードしてインストールする。
+
+1 のイメージは以下の kernel 関連 package がインストールされている。
+ii  libraspberrypi-bin                   1.20200512-2                        armhf        Miscellaneous Raspberry Pi utilities
+ii  libraspberrypi-dev                   1.20200512-2                        armhf        EGL/GLES/OpenVG/etc. libraries for the Raspberry Pi's VideoCore IV (headers)
+ii  libraspberrypi-doc                   1.20200512-2                        armhf        EGL/GLES/OpenVG/etc. libraries for the Raspberry Pi's VideoCore IV (headers)
+ii  libraspberrypi0                      1.20200512-2                        armhf        EGL/GLES/OpenVG/etc. libraries for the Raspberry Pi's VideoCore IV
+ii  raspberrypi-bootloader               1.20200512-2                        armhf        Raspberry Pi bootloader
+ii  raspberrypi-kernel                   1.20200512-2                        armhf        Raspberry Pi bootloader
+
+これに対応する kernel header pacakge をダウンロードしてインストールする。
+$ wget https://archive.raspberrypi.org/debian/pool/main/r/raspberrypi-firmware/raspberrypi-kernel-headers_1.20200512-2_armhf.deb
+$ sudo dpkg -i raspberrypi-kernel-headers_1.20200512-2_armhf.deb
+
+インストールされていることを確認
+$ sudo dpkg -l | grep raspberrypi
+ii  libraspberrypi-bin                   1.20200512-2                        armhf        Miscellaneous Raspberry Pi utilities
+ii  libraspberrypi-dev                   1.20200512-2                        armhf        EGL/GLES/OpenVG/etc. libraries for the Raspberry Pi's VideoCore IV (headers)
+ii  libraspberrypi-doc                   1.20200512-2                        armhf        EGL/GLES/OpenVG/etc. libraries for the Raspberry Pi's VideoCore IV (headers)
+ii  libraspberrypi0                      1.20200512-2                        armhf        EGL/GLES/OpenVG/etc. libraries for the Raspberry Pi's VideoCore IV
+ii  raspberrypi-artwork                  20150921                            all          Copy of the Raspberry Pi logo
+ii  raspberrypi-bootloader               1.20200512-2                        armhf        Raspberry Pi bootloader
+ii  raspberrypi-kernel                   1.20200512-2                        armhf        Raspberry Pi bootloader
+ii  raspberrypi-kernel-headers           1.20200512-2                        armhf        Header files for the Raspberry Pi Linux kernel
+
+
+インストール後 kernel 関連パッケージが更新されないよう hold する。
+
+$ sudo apt-mark hold libraspberrypi-bin libraspberrypi-dev libraspberrypi-doc raspberrypi-bootloader raspberrypi-kernel raspberrypi-kernel-headers
+
+
+3.
+BC-11AH-USB 向けにソースコード修正済みの ft232h-usb-spi driver を含む nrc7292_sw_pkg を
+BeatCraft の github
+https://github.com/BeatCraft/nrc7292_sw_pkg
+からダウンロードし、
+まず
+UG-7292-018-Raspberry_Pi_setup.pdf
+に従って nrc_pkg 一式を設定した後、
+$ cd nrc7292_sw_pkg/package/src/ft232h-usb-spi
+$ make
+
+この後 Insmod.sh を実行して driver が load され
+spi と gpio デバイスが追加されるか確認する必要があるが、
+RasPi3 と RasPi4 で設定される番号が異なる。
+Insmod.sh を以下のように設定し、
+
+RasPi3 の場合は
+
+LATENCY_TIME=1
+SPI_BUS_NUM=3
+GPIO_BASE_NUM=500
+
+RasPi4 の場合は
+
+LATENCY_TIME=1
+SPI_BUS_NUM=3
+GPIO_BASE_NUM=492
+
+$ ./Insmod.sh
+
+
+4.
+3 で設定してある nrc_pkg 内の
+nrc_pkg/script/start.py を
+AN-7292-008-FT232H_USB_SPI.pdf
+に従って USB 用に設定する。
+
+
+ft232h_usb_spi = 1 に変更
+
+# FT232H USB-SPI Conf. (FT232H CSPI Conf)
+ft232h_usb_spi = 1            # FTDI FT232H USB-SPI bridge
+                              # 0 : Unused
+                              # 1 : NRC-CSPI_EIRQ Input Polling
+                              # 2 : NRC-CSPI Registers Polling
+
+
+関数 ft232h_usb() の中の spi と gpio の設定を
+使用する RasPi に合わせて変更
+
+    # Re-define SPI parameters for ft232h_usb_spi
+    # ft232h_usb_spi
+    global spi_clock, spi_bus_num, spi_gpio_irq, spi_cs_num, spi_polling_interval
+    print("[*] use ft232h_usb_spi")
+    spi_bus_num = 3
+    spi_gpio_irq = 500
+
+
+これが完了したあと、HAT 版の BC-11AH-M2 を使用するときと同様に
+$ ./start.py を実行すると動作する。
+
+
+
+5. 
+起動時に load されるようにしたい場合は
+
+/lib/modules/4.19.118-v8+/kernel/driver/spi/
+に
+spi-ft232h.ko
+をコピーして 
+depmod -a
+実行後
+/etc/modprobe.d/
+に以下の内容のファイル spi-ft232h.conf
+を配置
+
+options spi-ft232h latency=1 spi_bus_num=3 gpio_bus_num=492
+
+で BC-11AH-USB を挿してある状態で起動する
+
